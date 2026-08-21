@@ -4,7 +4,8 @@ export type User = {
     username: string | null;
     email: string;
     role: 'admin' | 'guru' | 'siswa';
-    avatar?: string;
+    is_active: boolean;
+    avatar: string | null;
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;

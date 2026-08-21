@@ -30,6 +30,8 @@ class UserFactory extends Factory
             'username' => fake()->unique()->bothify('user_####'),
             'email' => fake()->unique()->safeEmail(),
             'role' => UserRole::Siswa,
+            'is_active' => true,
+            'avatar' => null,
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
