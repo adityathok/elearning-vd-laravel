@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\UserServices;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -58,5 +59,60 @@ class UserController extends Controller
                 ])
                 ->values(),
         ]);
+    }
+
+    /**
+     * Store a newly created admin user.
+     */
+    public function store(Request $request, UserServices $userServices): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'username' => ['required', 'string', 'alpha_dash:ascii', 'max:255', Rule::unique(User::class)],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
+            'password' => ['required', 'string', 'confirmed'],
+            'is_active' => ['required', 'boolean'],
+            'avatar' => ['nullable', 'string', 'max:255'],
+        ]);
+        unset($validated['password_confirmation']);
+
+        $userServices->create([
+            ...$validated,
+            'role' => UserRole::Admin,
+            'avatar' => ($validated['avatar'] ?? null) ?: null,
+        ]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Admin user created.')]);
+
+        return to_route('dashboard.users.index');
+    }
+
+    /**
+     * Update the specified user.
+     */
+    public function update(Request $request, User $user, UserServices $userServices): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'username' => ['required', 'string', 'alpha_dash:ascii', 'max:255', Rule::unique(User::class)->ignore($user)],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)->ignore($user)],
+            'password' => ['nullable', 'string', 'confirmed'],
+            'is_active' => ['required', 'boolean'],
+            'avatar' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        if (empty($validated['password'])) {
+            unset($validated['password']);
+        }
+        unset($validated['password_confirmation']);
+
+        $userServices->update($user, [
+            ...$validated,
+            'avatar' => ($validated['avatar'] ?? null) ?: null,
+        ]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('User updated.')]);
+
+        return to_route('dashboard.users.index');
     }
 }

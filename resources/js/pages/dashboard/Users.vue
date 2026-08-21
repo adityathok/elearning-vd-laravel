@@ -1,11 +1,21 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
-import { ChevronLeft, ChevronRight, Search, X } from '@lucide/vue';
-import { computed } from 'vue';
+import { Head, Link, useForm } from '@inertiajs/vue3';
+import { ChevronLeft, ChevronRight, Pencil, Plus, Search, X } from '@lucide/vue';
+import { computed, ref } from 'vue';
+import InputError from '@/components/InputError.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useInitials } from '@/composables/useInitials';
 
 type UserRole = 'admin' | 'guru' | 'siswa';
@@ -69,6 +79,27 @@ defineOptions({
 
 const { getInitials } = useInitials();
 
+const isUserModalOpen = ref(false);
+const editingUser = ref<DashboardUser | null>(null);
+
+const userForm = useForm({
+    name: '',
+    username: '',
+    email: '',
+    password: '',
+    password_confirmation: '',
+    is_active: true,
+    avatar: '',
+});
+
+const isEditing = computed(() => editingUser.value !== null);
+const modalTitle = computed(() => (isEditing.value ? 'Edit user' : 'Tambah admin'));
+const modalDescription = computed(() =>
+    isEditing.value
+        ? 'Update data user yang dipilih.'
+        : 'User baru dari halaman ini otomatis dibuat sebagai admin.',
+);
+
 const searchQuery = computed(() => props.filters.q ?? '');
 
 const dashboardUsersUrl = (params: { role?: UserRole | null; q?: string | null } = {}) => {
@@ -124,6 +155,54 @@ const roleVariant = (role: UserRole) => {
 
     return 'outline';
 };
+
+const openCreateModal = () => {
+    editingUser.value = null;
+    userForm.clearErrors();
+    userForm.reset();
+    userForm.is_active = true;
+    isUserModalOpen.value = true;
+};
+
+const openEditModal = (user: DashboardUser) => {
+    editingUser.value = user;
+    userForm.clearErrors();
+    userForm.name = user.name;
+    userForm.username = user.username ?? '';
+    userForm.email = user.email;
+    userForm.password = '';
+    userForm.password_confirmation = '';
+    userForm.is_active = user.is_active;
+    userForm.avatar = user.avatar ?? '';
+    isUserModalOpen.value = true;
+};
+
+const closeUserModal = () => {
+    isUserModalOpen.value = false;
+    editingUser.value = null;
+    userForm.clearErrors();
+    userForm.reset();
+};
+
+const submitUserForm = () => {
+    const options = {
+        preserveScroll: true,
+        onSuccess: closeUserModal,
+    };
+
+    userForm.transform((data) => ({
+        ...data,
+        avatar: data.avatar.trim() || null,
+    }));
+
+    if (editingUser.value) {
+        userForm.patch(`/dashboard/users/${editingUser.value.id}`, options);
+
+        return;
+    }
+
+    userForm.post('/dashboard/users', options);
+};
 </script>
 
 <template>
@@ -139,6 +218,10 @@ const roleVariant = (role: UserRole) => {
             </div>
 
             <div class="flex flex-wrap gap-2">
+                <Button type="button" @click="openCreateModal">
+                    <Plus />
+                    Tambah
+                </Button>
                 <Button
                     v-for="filter in roleFilters"
                     :key="filter.label"
@@ -202,6 +285,7 @@ const roleVariant = (role: UserRole) => {
                             <th class="px-4 py-3 font-medium">Role</th>
                             <th class="px-4 py-3 font-medium">Status</th>
                             <th class="px-4 py-3 font-medium">Created</th>
+                            <th class="px-4 py-3 text-right font-medium">Action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y">
@@ -248,11 +332,22 @@ const roleVariant = (role: UserRole) => {
                             <td class="px-4 py-3 text-muted-foreground">
                                 {{ user.created_at ? new Date(user.created_at).toLocaleDateString() : '-' }}
                             </td>
+                            <td class="px-4 py-3 text-right">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    @click="openEditModal(user)"
+                                >
+                                    <Pencil />
+                                    Edit
+                                </Button>
+                            </td>
                         </tr>
                         <tr v-if="users.data.length === 0">
                             <td
                                 class="px-4 py-10 text-center text-muted-foreground"
-                                colspan="5"
+                                colspan="6"
                             >
                                 No users found.
                             </td>
@@ -307,4 +402,128 @@ const roleVariant = (role: UserRole) => {
             </div>
         </div>
     </div>
+
+    <Dialog v-model:open="isUserModalOpen">
+        <DialogContent class="sm:max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>{{ modalTitle }}</DialogTitle>
+                <DialogDescription>
+                    {{ modalDescription }}
+                </DialogDescription>
+            </DialogHeader>
+
+            <form class="grid gap-5" @submit.prevent="submitUserForm">
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="grid gap-2">
+                        <Label for="user-name">Name</Label>
+                        <Input
+                            id="user-name"
+                            v-model="userForm.name"
+                            type="text"
+                            required
+                            autocomplete="name"
+                            placeholder="Full name"
+                        />
+                        <InputError :message="userForm.errors.name" />
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Label for="user-username">Username</Label>
+                        <Input
+                            id="user-username"
+                            v-model="userForm.username"
+                            type="text"
+                            required
+                            autocomplete="username"
+                            placeholder="username"
+                        />
+                        <InputError :message="userForm.errors.username" />
+                    </div>
+                </div>
+
+                <div class="grid gap-2">
+                    <Label for="user-email">Email</Label>
+                    <Input
+                        id="user-email"
+                        v-model="userForm.email"
+                        type="email"
+                        required
+                        autocomplete="email"
+                        placeholder="email@example.com"
+                    />
+                    <InputError :message="userForm.errors.email" />
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="grid gap-2">
+                        <Label for="user-password">
+                            Password
+                            <span v-if="isEditing" class="text-muted-foreground">
+                                optional
+                            </span>
+                        </Label>
+                        <Input
+                            id="user-password"
+                            v-model="userForm.password"
+                            type="password"
+                            :required="!isEditing"
+                            autocomplete="new-password"
+                            placeholder="Password"
+                        />
+                        <InputError :message="userForm.errors.password" />
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Label for="user-password-confirmation">
+                            Confirm password
+                        </Label>
+                        <Input
+                            id="user-password-confirmation"
+                            v-model="userForm.password_confirmation"
+                            type="password"
+                            :required="!isEditing"
+                            autocomplete="new-password"
+                            placeholder="Confirm password"
+                        />
+                        <InputError :message="userForm.errors.password_confirmation" />
+                    </div>
+                </div>
+
+                <div class="grid gap-2">
+                    <Label for="user-avatar">Avatar URL/path</Label>
+                    <Input
+                        id="user-avatar"
+                        v-model="userForm.avatar"
+                        type="text"
+                        placeholder="avatars/admin.png"
+                    />
+                    <InputError :message="userForm.errors.avatar" />
+                </div>
+
+                <label class="flex items-center gap-2 text-sm">
+                    <input
+                        v-model="userForm.is_active"
+                        class="size-4 rounded border-input"
+                        type="checkbox"
+                    />
+                    Active
+                </label>
+                <InputError :message="userForm.errors.is_active" />
+
+                <DialogFooter>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        :disabled="userForm.processing"
+                        @click="closeUserModal"
+                    >
+                        Cancel
+                    </Button>
+                    <Button type="submit" :disabled="userForm.processing">
+                        {{ isEditing ? 'Save' : 'Tambah admin' }}
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
 </template>

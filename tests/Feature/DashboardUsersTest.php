@@ -2,6 +2,7 @@
 
 use App\Enums\UserRole;
 use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('guests are redirected from dashboard users page', function () {
@@ -105,4 +106,54 @@ test('dashboard users page can combine search and role filters', function () {
             ->where('users.data.0.role', UserRole::Guru->value)
             ->where('users.data.0.email', 'budi.guru@example.com'),
         );
+});
+
+test('dashboard users page can create admin users only', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+    $this->actingAs($admin)
+        ->post(route('dashboard.users.store'), [
+            'name' => 'New Admin',
+            'username' => 'new_admin',
+            'email' => 'new.admin@example.com',
+            'password' => 'admin-secret',
+            'password_confirmation' => 'admin-secret',
+            'role' => UserRole::Siswa->value,
+            'is_active' => true,
+            'avatar' => 'avatars/new-admin.png',
+        ])
+        ->assertRedirect(route('dashboard.users.index'));
+
+    $createdUser = User::where('username', 'new_admin')->firstOrFail();
+
+    expect($createdUser->role)->toBe(UserRole::Admin)
+        ->and($createdUser->is_active)->toBeTrue()
+        ->and($createdUser->avatar)->toBe('avatars/new-admin.png')
+        ->and(Hash::check('admin-secret', $createdUser->password))->toBeTrue();
+});
+
+test('dashboard users page can update a user', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $user = User::factory()->create(['role' => UserRole::Guru]);
+
+    $this->actingAs($admin)
+        ->patch(route('dashboard.users.update', $user), [
+            'name' => 'Updated Guru',
+            'username' => 'updated_guru',
+            'email' => 'updated.guru@example.com',
+            'password' => '',
+            'password_confirmation' => '',
+            'is_active' => false,
+            'avatar' => '',
+        ])
+        ->assertRedirect(route('dashboard.users.index'));
+
+    $user->refresh();
+
+    expect($user->name)->toBe('Updated Guru')
+        ->and($user->username)->toBe('updated_guru')
+        ->and($user->email)->toBe('updated.guru@example.com')
+        ->and($user->role)->toBe(UserRole::Guru)
+        ->and($user->is_active)->toBeFalse()
+        ->and($user->avatar)->toBeNull();
 });
