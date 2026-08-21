@@ -126,6 +126,21 @@ class UserController extends Controller
     }
 
     /**
+     * Delete the specified admin user.
+     */
+    public function destroy(Request $request, User $user, UserServices $userServices): RedirectResponse
+    {
+        abort_if($user->role !== UserRole::Admin, 403);
+        abort_if($request->user()?->is($user), 403);
+
+        $userServices->delete($user);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Admin user deleted.')]);
+
+        return to_route('dashboard.users.index');
+    }
+
+    /**
      * Store an uploaded avatar and return its public URL.
      */
     private function storeAvatar(Request $request): string

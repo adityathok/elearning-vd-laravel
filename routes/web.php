@@ -10,6 +10,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard/users', [UserController::class, 'index'])->name('dashboard.users.index');
     Route::post('dashboard/users', [UserController::class, 'store'])->name('dashboard.users.store');
     Route::patch('dashboard/users/{user}', [UserController::class, 'update'])->name('dashboard.users.update');
+    Route::delete('dashboard/users/{user}', [UserController::class, 'destroy'])->name('dashboard.users.destroy');
 });
 
 require __DIR__.'/settings.php';

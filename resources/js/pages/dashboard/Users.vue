@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     ChevronLeft,
     ChevronRight,
     Pencil,
     Plus,
     Search,
+    Trash2,
     X,
 } from '@lucide/vue';
 import { computed, ref } from 'vue';
@@ -93,6 +94,7 @@ defineOptions({
 });
 
 const { getInitials } = useInitials();
+const page = usePage();
 
 const isUserModalOpen = ref(false);
 const editingUser = ref<DashboardUser | null>(null);
@@ -153,6 +155,7 @@ const roleFilterOptions = computed(() => [
 const selectedRoleFilter = computed<RoleFilterValue>(
     () => props.filters.role ?? 'all',
 );
+const currentUserId = computed(() => page.props.auth.user.id);
 
 const clearSearchHref = computed(() =>
     dashboardUsersUrl({ role: props.filters.role }),
@@ -207,6 +210,25 @@ const updateRoleFilter = (value: unknown) => {
             preserveScroll: true,
         },
     );
+};
+
+const canDeleteUser = (user: DashboardUser) =>
+    user.role === 'admin' && user.id !== currentUserId.value;
+
+const deleteUser = (user: DashboardUser) => {
+    if (!canDeleteUser(user)) {
+        return;
+    }
+
+    const confirmed = window.confirm(`Hapus admin ${user.name}?`);
+
+    if (!confirmed) {
+        return;
+    }
+
+    router.delete(`/dashboard/users/${user.id}`, {
+        preserveScroll: true,
+    });
 };
 
 const openCreateModal = () => {
@@ -476,16 +498,26 @@ const submitUserForm = () => {
                                         : '-'
                                 }}
                             </td>
-                            <td class="px-5 py-4 text-right">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    class="h-10 rounded-[4px] border-[#1a1a1a] bg-white px-4 text-xs font-bold tracking-[0.126px] text-[#1a1a1a] uppercase shadow-none hover:bg-white"
-                                    @click="openEditModal(user)"
-                                >
-                                    <Pencil />
-                                    Edit
-                                </Button>
+                            <td class="px-5 py-4">
+                                <div class="flex justify-end gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        class="h-10 rounded-[4px] border-[#1a1a1a] bg-white px-4 text-xs font-bold tracking-[0.126px] text-[#1a1a1a] uppercase shadow-none hover:bg-white"
+                                        @click="openEditModal(user)"
+                                    >
+                                        <Pencil />
+                                    </Button>
+                                    <Button
+                                        v-if="canDeleteUser(user)"
+                                        type="button"
+                                        variant="outline"
+                                        class="h-10 rounded-[4px] border-[#b3262b] bg-white px-4 text-xs font-bold tracking-[0.126px] text-[#b3262b] uppercase shadow-none hover:bg-white"
+                                        @click="deleteUser(user)"
+                                    >
+                                        <Trash2 />
+                                    </Button>
+                                </div>
                             </td>
                         </tr>
                         <tr v-if="users.data.length === 0">

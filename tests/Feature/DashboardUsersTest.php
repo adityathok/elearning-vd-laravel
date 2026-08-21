@@ -194,6 +194,52 @@ test('dashboard users page can update avatar with an uploaded image', function (
     Storage::disk('public')->assertExists(Str::after($user->avatar, '/storage/'));
 });
 
+test('dashboard users page can delete another admin user', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $targetAdmin = User::factory()->create(['role' => UserRole::Admin]);
+
+    $this->actingAs($admin)
+        ->delete(route('dashboard.users.destroy', $targetAdmin))
+        ->assertRedirect(route('dashboard.users.index'));
+
+    $this->assertDatabaseMissing('users', [
+        'id' => $targetAdmin->id,
+    ]);
+});
+
+test('dashboard users page cannot delete the authenticated admin user', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+    $this->actingAs($admin)
+        ->delete(route('dashboard.users.destroy', $admin))
+        ->assertForbidden();
+
+    $this->assertDatabaseHas('users', [
+        'id' => $admin->id,
+    ]);
+});
+
+test('dashboard users page cannot delete non admin users', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $guru = User::factory()->create(['role' => UserRole::Guru]);
+    $siswa = User::factory()->create(['role' => UserRole::Siswa]);
+
+    $this->actingAs($admin)
+        ->delete(route('dashboard.users.destroy', $guru))
+        ->assertForbidden();
+
+    $this->actingAs($admin)
+        ->delete(route('dashboard.users.destroy', $siswa))
+        ->assertForbidden();
+
+    $this->assertDatabaseHas('users', [
+        'id' => $guru->id,
+    ]);
+    $this->assertDatabaseHas('users', [
+        'id' => $siswa->id,
+    ]);
+});
+
 test('dashboard users page rejects avatars larger than five hundred kilobytes', function () {
     $admin = User::factory()->create(['role' => UserRole::Admin]);
 
