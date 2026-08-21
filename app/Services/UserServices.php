@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -37,6 +38,22 @@ class UserServices
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
         return $this->query()
+            ->orderBy('name')
+            ->paginate($perPage);
+    }
+
+    /**
+     * Get paginated users for the dashboard user list.
+     */
+    public function paginateForDashboard(?UserRole $role = null, ?string $search = null, int $perPage = 25): LengthAwarePaginator
+    {
+        return $this->query()
+            ->when($role, fn (Builder $query): Builder => $query->where('role', $role->value))
+            ->when($search, fn (Builder $query): Builder => $query->where(
+                fn (Builder $query): Builder => $query
+                    ->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%"),
+            ))
             ->orderBy('name')
             ->paginate($perPage);
     }
