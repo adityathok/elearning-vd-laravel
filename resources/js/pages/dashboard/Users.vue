@@ -1,6 +1,13 @@
 <script setup lang="ts">
-import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ChevronLeft, ChevronRight, Pencil, Plus, Search, X } from '@lucide/vue';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import {
+    ChevronLeft,
+    ChevronRight,
+    Pencil,
+    Plus,
+    Search,
+    X,
+} from '@lucide/vue';
 import { computed, ref } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -16,9 +23,17 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { useInitials } from '@/composables/useInitials';
 
 type UserRole = 'admin' | 'guru' | 'siswa';
+type RoleFilterValue = UserRole | 'all';
 
 type DashboardUser = {
     id: number;
@@ -93,7 +108,9 @@ const userForm = useForm({
 });
 
 const isEditing = computed(() => editingUser.value !== null);
-const modalTitle = computed(() => (isEditing.value ? 'Edit user' : 'Tambah admin'));
+const modalTitle = computed(() =>
+    isEditing.value ? 'Edit user' : 'Tambah admin',
+);
 const modalDescription = computed(() =>
     isEditing.value
         ? 'Update data user yang dipilih.'
@@ -102,7 +119,9 @@ const modalDescription = computed(() =>
 
 const searchQuery = computed(() => props.filters.q ?? '');
 
-const dashboardUsersUrl = (params: { role?: UserRole | null; q?: string | null } = {}) => {
+const dashboardUsersUrl = (
+    params: { role?: UserRole | null; q?: string | null } = {},
+) => {
     const searchParams = new URLSearchParams();
 
     if (params.role) {
@@ -120,20 +139,20 @@ const dashboardUsersUrl = (params: { role?: UserRole | null; q?: string | null }
     return query ? `/dashboard/users?${query}` : '/dashboard/users';
 };
 
-const roleFilters = computed(() => [
+const roleFilterOptions = computed(() => [
     {
         label: 'All',
-        value: null,
-        href: dashboardUsersUrl({ q: props.filters.q }),
-        active: props.filters.role === null,
+        value: 'all' as RoleFilterValue,
     },
     ...props.roles.map((role) => ({
         label: role.label,
         value: role.value,
-        href: dashboardUsersUrl({ role: role.value, q: props.filters.q }),
-        active: props.filters.role === role.value,
     })),
 ]);
+
+const selectedRoleFilter = computed<RoleFilterValue>(
+    () => props.filters.role ?? 'all',
+);
 
 const clearSearchHref = computed(() =>
     dashboardUsersUrl({ role: props.filters.role }),
@@ -144,16 +163,50 @@ const nextLink = computed(
     () => props.users.links[props.users.links.length - 1] ?? null,
 );
 
-const roleVariant = (role: UserRole) => {
+const usersSummary = computed(() => {
+    if (props.users.total === 0) {
+        return 'Tidak ada user';
+    }
+
+    return `${props.users.total} user terdaftar`;
+});
+
+const roleBadgeClass = (role: UserRole) => {
     if (role === 'admin') {
-        return 'default';
+        return 'border-[#1a1a1a] bg-[#1a1a1a] text-white';
     }
 
     if (role === 'guru') {
-        return 'secondary';
+        return 'border-[#c9e0fc] bg-[#c9e0fc] text-[#1a1a1a]';
     }
 
-    return 'outline';
+    return 'border-[#c2c2c2] bg-white text-[#1a1a1a]';
+};
+
+const statusBadgeClass = (isActive: boolean) => {
+    if (isActive) {
+        return 'border-[#356373] bg-white text-[#356373]';
+    }
+
+    return 'border-[#b3262b] bg-[#f9d4d2] text-[#5a1313]';
+};
+
+const updateRoleFilter = (value: unknown) => {
+    const role = String(value) as RoleFilterValue;
+
+    if (role === selectedRoleFilter.value) {
+        return;
+    }
+
+    router.visit(
+        dashboardUsersUrl({
+            role: role === 'all' ? null : role,
+            q: props.filters.q,
+        }),
+        {
+            preserveScroll: true,
+        },
+    );
 };
 
 const openCreateModal = () => {
@@ -215,135 +268,219 @@ const submitUserForm = () => {
 <template>
     <Head title="Users" />
 
-    <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div
+        class="flex h-full flex-1 flex-col gap-6 overflow-x-auto bg-white p-4 font-['Forma_DJR_Micro',Arial,sans-serif] text-[#1a1a1a] md:p-6"
+    >
+        <section
+            class="flex flex-col justify-end p-4 md:flex-row md:justify-between md:p-6"
+        >
             <div>
-                <h1 class="text-2xl font-semibold tracking-normal">Users</h1>
-                <p class="text-sm text-muted-foreground">
-                    {{ users.total }} users
+                <p class="mt-3 text-base leading-[1.38] text-[#3d3d3d]">
+                    Kelola admin, guru, dan siswa dari satu tampilan yang mudah
+                    dipindai.
+                </p>
+                <p class="mt-4 text-sm leading-normal text-[#636363]">
+                    {{ usersSummary }}
                 </p>
             </div>
+            <Button
+                type="button"
+                class="h-11 rounded-lg bg-[#024ad8] px-6 text-sm font-semibold tracking-[0.7px] text-white uppercase shadow-none hover:bg-[#0e3191]"
+                @click="openCreateModal"
+            >
+                <Plus />
+                Tambah
+            </Button>
+        </section>
 
-            <div class="flex flex-wrap gap-2">
-                <Button type="button" @click="openCreateModal">
-                    <Plus />
-                    Tambah
-                </Button>
-                <Button
-                    v-for="filter in roleFilters"
-                    :key="filter.label"
-                    as-child
-                    :variant="filter.active ? 'default' : 'outline'"
-                    size="sm"
+        <section class="grid gap-4 rounded-2xl bg-[#f7f7f7] p-4 md:p-6">
+            <div
+                class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between"
+            >
+                <div class="grid gap-2 sm:w-56">
+                    <Select
+                        :model-value="selectedRoleFilter"
+                        @update:model-value="updateRoleFilter"
+                    >
+                        <SelectTrigger
+                            class="h-11 w-full rounded-[4px] border-[#c2c2c2] bg-white px-4 text-sm font-medium text-[#1a1a1a] shadow-none focus-visible:border-[#1a1a1a] focus-visible:ring-0"
+                        >
+                            <SelectValue placeholder="Pilih role" />
+                        </SelectTrigger>
+                        <SelectContent
+                            class="rounded-lg border-[#e8e8e8] bg-white text-[#1a1a1a] shadow-[0_8px_24px_rgba(26,26,26,0.12)]"
+                        >
+                            <SelectItem
+                                v-for="filter in roleFilterOptions"
+                                :key="filter.value"
+                                :value="filter.value"
+                                class="rounded-[4px] text-sm text-[#1a1a1a] focus:bg-[#f7f7f7] focus:text-[#1a1a1a]"
+                            >
+                                {{ filter.label }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <form
+                    class="flex w-full flex-col gap-3 xl:max-w-2xl xl:flex-row"
+                    method="get"
+                    action="/dashboard/users"
                 >
-                    <Link :href="filter.href" preserve-scroll>
-                        {{ filter.label }}
-                    </Link>
-                </Button>
+                    <input
+                        v-if="filters.role"
+                        type="hidden"
+                        name="role"
+                        :value="filters.role"
+                    />
+                    <div class="relative flex-1">
+                        <Search
+                            class="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-[#636363]"
+                        />
+                        <Input
+                            class="h-11 rounded-[4px] border-[#c2c2c2] bg-white pl-11 text-base text-[#1a1a1a] shadow-none focus-visible:border-[#1a1a1a] focus-visible:ring-0 md:text-sm"
+                            type="search"
+                            name="q"
+                            :default-value="searchQuery"
+                            placeholder="Search by name or email"
+                        />
+                    </div>
+                    <div class="flex gap-2">
+                        <Button
+                            type="submit"
+                            class="h-11 rounded-[4px] bg-[#1a1a1a] px-6 text-sm font-semibold tracking-[0.7px] text-white uppercase shadow-none hover:bg-[#000000]"
+                        >
+                            Search
+                        </Button>
+                        <Button
+                            v-if="filters.q"
+                            as-child
+                            variant="outline"
+                            type="button"
+                            class="h-11 rounded-[4px] border-[#1a1a1a] bg-white px-5 text-sm font-semibold tracking-[0.7px] text-[#1a1a1a] uppercase shadow-none hover:bg-white"
+                        >
+                            <Link :href="clearSearchHref" preserve-scroll>
+                                <X />
+                                Clear
+                            </Link>
+                        </Button>
+                    </div>
+                </form>
             </div>
-        </div>
+        </section>
 
-        <form
-            class="flex flex-col gap-2 sm:max-w-xl sm:flex-row"
-            method="get"
-            action="/dashboard/users"
+        <div
+            class="overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white shadow-[0_2px_8px_rgba(26,26,26,0.08)]"
         >
-            <input
-                v-if="filters.role"
-                type="hidden"
-                name="role"
-                :value="filters.role"
-            />
-            <div class="relative flex-1">
-                <Search
-                    class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-                />
-                <Input
-                    class="pl-9"
-                    type="search"
-                    name="q"
-                    :default-value="searchQuery"
-                    placeholder="Search by name or email"
-                />
-            </div>
-            <div class="flex gap-2">
-                <Button type="submit">Search</Button>
-                <Button
-                    v-if="filters.q"
-                    as-child
-                    variant="outline"
-                    type="button"
-                >
-                    <Link :href="clearSearchHref" preserve-scroll>
-                        <X />
-                        Clear
-                    </Link>
-                </Button>
-            </div>
-        </form>
-
-        <div class="overflow-hidden rounded-lg border border-sidebar-border/70 dark:border-sidebar-border">
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[760px] text-sm">
-                    <thead class="border-b bg-muted/40 text-left text-xs uppercase text-muted-foreground">
+                <table class="w-full min-w-[760px] text-sm text-[#1a1a1a]">
+                    <thead
+                        class="border-b border-[#e8e8e8] bg-[#f7f7f7] text-left text-xs text-[#636363] uppercase"
+                    >
                         <tr>
-                            <th class="px-4 py-3 font-medium">User</th>
-                            <th class="px-4 py-3 font-medium">Username</th>
-                            <th class="px-4 py-3 font-medium">Role</th>
-                            <th class="px-4 py-3 font-medium">Status</th>
-                            <th class="px-4 py-3 font-medium">Created</th>
-                            <th class="px-4 py-3 text-right font-medium">Action</th>
+                            <th
+                                class="px-5 py-4 font-semibold tracking-[0.7px]"
+                            >
+                                User
+                            </th>
+                            <th
+                                class="px-5 py-4 font-semibold tracking-[0.7px]"
+                            >
+                                Username
+                            </th>
+                            <th
+                                class="px-5 py-4 font-semibold tracking-[0.7px]"
+                            >
+                                Role
+                            </th>
+                            <th
+                                class="px-5 py-4 font-semibold tracking-[0.7px]"
+                            >
+                                Status
+                            </th>
+                            <th
+                                class="px-5 py-4 font-semibold tracking-[0.7px]"
+                            >
+                                Created
+                            </th>
+                            <th
+                                class="px-5 py-4 text-right font-semibold tracking-[0.7px]"
+                            >
+                                Action
+                            </th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y">
+                    <tbody class="divide-y divide-[#e8e8e8]">
                         <tr
                             v-for="user in users.data"
                             :key="user.id"
-                            class="bg-background"
+                            class="bg-white"
                         >
-                            <td class="px-4 py-3">
+                            <td class="px-5 py-4">
                                 <div class="flex items-center gap-3">
-                                    <Avatar class="size-9 rounded-lg">
+                                    <Avatar
+                                        class="size-11 rounded-2xl border border-[#e8e8e8] bg-[#f7f7f7]"
+                                    >
                                         <AvatarImage
                                             v-if="user.avatar"
                                             :src="user.avatar"
                                             :alt="user.name"
                                         />
-                                        <AvatarFallback class="rounded-lg">
+                                        <AvatarFallback
+                                            class="rounded-2xl bg-[#f7f7f7] text-sm font-medium text-[#1a1a1a]"
+                                        >
                                             {{ getInitials(user.name) }}
                                         </AvatarFallback>
                                     </Avatar>
                                     <div class="min-w-0">
-                                        <div class="truncate font-medium">
+                                        <div
+                                            class="truncate text-base leading-[1.38] font-medium text-[#1a1a1a]"
+                                        >
                                             {{ user.name }}
                                         </div>
-                                        <div class="truncate text-xs text-muted-foreground">
+                                        <div
+                                            class="truncate text-sm leading-[1.5] text-[#636363]"
+                                        >
                                             {{ user.email }}
                                         </div>
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-4 py-3 text-muted-foreground">
+                            <td class="px-5 py-4 text-[#636363]">
                                 {{ user.username ?? '-' }}
                             </td>
-                            <td class="px-4 py-3">
-                                <Badge :variant="roleVariant(user.role)">
+                            <td class="px-5 py-4">
+                                <Badge
+                                    variant="outline"
+                                    class="rounded-lg px-3 py-1 text-sm font-medium capitalize"
+                                    :class="roleBadgeClass(user.role)"
+                                >
                                     {{ user.role }}
                                 </Badge>
                             </td>
-                            <td class="px-4 py-3">
-                                <Badge :variant="user.is_active ? 'outline' : 'destructive'">
+                            <td class="px-5 py-4">
+                                <Badge
+                                    variant="outline"
+                                    class="rounded-lg px-3 py-1 text-sm font-medium"
+                                    :class="statusBadgeClass(user.is_active)"
+                                >
                                     {{ user.is_active ? 'active' : 'inactive' }}
                                 </Badge>
                             </td>
-                            <td class="px-4 py-3 text-muted-foreground">
-                                {{ user.created_at ? new Date(user.created_at).toLocaleDateString() : '-' }}
+                            <td class="px-5 py-4 text-[#636363]">
+                                {{
+                                    user.created_at
+                                        ? new Date(
+                                              user.created_at,
+                                          ).toLocaleDateString()
+                                        : '-'
+                                }}
                             </td>
-                            <td class="px-4 py-3 text-right">
+                            <td class="px-5 py-4 text-right">
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    size="sm"
+                                    class="h-10 rounded-[4px] border-[#1a1a1a] bg-white px-4 text-xs font-bold tracking-[0.126px] text-[#1a1a1a] uppercase shadow-none hover:bg-white"
                                     @click="openEditModal(user)"
                                 >
                                     <Pencil />
@@ -353,7 +490,7 @@ const submitUserForm = () => {
                         </tr>
                         <tr v-if="users.data.length === 0">
                             <td
-                                class="px-4 py-10 text-center text-muted-foreground"
+                                class="px-5 py-12 text-center text-[#636363]"
                                 colspan="6"
                             >
                                 No users found.
@@ -364,8 +501,10 @@ const submitUserForm = () => {
             </div>
         </div>
 
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p class="text-sm text-muted-foreground">
+        <div
+            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+            <p class="text-sm leading-[1.5] text-[#636363]">
                 Showing {{ users.from ?? 0 }} to {{ users.to ?? 0 }} of
                 {{ users.total }}
             </p>
@@ -374,33 +513,38 @@ const submitUserForm = () => {
                 <Button
                     as-child
                     variant="outline"
-                    size="sm"
+                    class="h-10 rounded-[4px] border-[#1a1a1a] bg-white px-4 text-xs font-bold tracking-[0.126px] text-[#1a1a1a] uppercase shadow-none hover:bg-white"
                     :disabled="!previousLink?.url"
                 >
                     <Link
                         :href="previousLink?.url ?? '#'"
                         preserve-scroll
-                        :class="{ 'pointer-events-none opacity-50': !previousLink?.url }"
+                        :class="{
+                            'pointer-events-none opacity-50':
+                                !previousLink?.url,
+                        }"
                     >
                         <ChevronLeft />
                         Previous
                     </Link>
                 </Button>
 
-                <span class="text-sm text-muted-foreground">
+                <span class="px-2 text-sm leading-[1.5] text-[#636363]">
                     Page {{ users.current_page }} of {{ users.last_page }}
                 </span>
 
                 <Button
                     as-child
                     variant="outline"
-                    size="sm"
+                    class="h-10 rounded-[4px] border-[#1a1a1a] bg-white px-4 text-xs font-bold tracking-[0.126px] text-[#1a1a1a] uppercase shadow-none hover:bg-white"
                     :disabled="!nextLink?.url"
                 >
                     <Link
                         :href="nextLink?.url ?? '#'"
                         preserve-scroll
-                        :class="{ 'pointer-events-none opacity-50': !nextLink?.url }"
+                        :class="{
+                            'pointer-events-none opacity-50': !nextLink?.url,
+                        }"
                     >
                         Next
                         <ChevronRight />
@@ -411,10 +555,16 @@ const submitUserForm = () => {
     </div>
 
     <Dialog v-model:open="isUserModalOpen">
-        <DialogContent class="sm:max-w-2xl">
+        <DialogContent
+            class="rounded-2xl border-[#e8e8e8] bg-white p-6 text-[#1a1a1a] shadow-[0_8px_24px_rgba(26,26,26,0.12)] sm:max-w-2xl"
+        >
             <DialogHeader>
-                <DialogTitle>{{ modalTitle }}</DialogTitle>
-                <DialogDescription>
+                <DialogTitle
+                    class="text-2xl leading-[1.17] font-medium tracking-normal text-[#1a1a1a]"
+                >
+                    {{ modalTitle }}
+                </DialogTitle>
+                <DialogDescription class="text-sm leading-[1.5] text-[#636363]">
                     {{ modalDescription }}
                 </DialogDescription>
             </DialogHeader>
@@ -426,6 +576,7 @@ const submitUserForm = () => {
                         <Input
                             id="user-name"
                             v-model="userForm.name"
+                            class="h-11 rounded-[4px] border-[#c2c2c2] bg-white shadow-none focus-visible:border-[#1a1a1a] focus-visible:ring-0"
                             type="text"
                             required
                             autocomplete="name"
@@ -439,6 +590,7 @@ const submitUserForm = () => {
                         <Input
                             id="user-username"
                             v-model="userForm.username"
+                            class="h-11 rounded-[4px] border-[#c2c2c2] bg-white shadow-none focus-visible:border-[#1a1a1a] focus-visible:ring-0"
                             type="text"
                             required
                             autocomplete="username"
@@ -453,6 +605,7 @@ const submitUserForm = () => {
                     <Input
                         id="user-email"
                         v-model="userForm.email"
+                        class="h-11 rounded-[4px] border-[#c2c2c2] bg-white shadow-none focus-visible:border-[#1a1a1a] focus-visible:ring-0"
                         type="email"
                         required
                         autocomplete="email"
@@ -465,13 +618,17 @@ const submitUserForm = () => {
                     <div class="grid gap-2">
                         <Label for="user-password">
                             Password
-                            <span v-if="isEditing" class="text-muted-foreground">
+                            <span
+                                v-if="isEditing"
+                                class="text-muted-foreground"
+                            >
                                 optional
                             </span>
                         </Label>
                         <Input
                             id="user-password"
                             v-model="userForm.password"
+                            class="h-11 rounded-[4px] border-[#c2c2c2] bg-white shadow-none focus-visible:border-[#1a1a1a] focus-visible:ring-0"
                             type="password"
                             :required="!isEditing"
                             autocomplete="new-password"
@@ -487,12 +644,15 @@ const submitUserForm = () => {
                         <Input
                             id="user-password-confirmation"
                             v-model="userForm.password_confirmation"
+                            class="h-11 rounded-[4px] border-[#c2c2c2] bg-white shadow-none focus-visible:border-[#1a1a1a] focus-visible:ring-0"
                             type="password"
                             :required="!isEditing"
                             autocomplete="new-password"
                             placeholder="Confirm password"
                         />
-                        <InputError :message="userForm.errors.password_confirmation" />
+                        <InputError
+                            :message="userForm.errors.password_confirmation"
+                        />
                     </div>
                 </div>
 
@@ -500,26 +660,28 @@ const submitUserForm = () => {
                     <Label for="user-avatar">Avatar</Label>
                     <Input
                         id="user-avatar"
+                        class="h-11 rounded-[4px] border-[#c2c2c2] bg-white shadow-none file:text-[#1a1a1a] focus-visible:border-[#1a1a1a] focus-visible:ring-0"
                         type="file"
                         accept="image/*"
                         @change="setAvatarFile"
                     />
-                    <p class="text-xs text-muted-foreground">
+                    <p class="text-xs leading-[1.33] text-[#636363]">
                         Upload gambar maksimal 500KB.
                     </p>
                     <p
                         v-if="isEditing && editingUser?.avatar"
-                        class="text-xs text-muted-foreground"
+                        class="text-xs leading-[1.33] text-[#636363]"
                     >
-                        Avatar saat ini tetap dipakai jika tidak upload gambar baru.
+                        Avatar saat ini tetap dipakai jika tidak upload gambar
+                        baru.
                     </p>
                     <InputError :message="userForm.errors.avatar" />
                 </div>
 
-                <label class="flex items-center gap-2 text-sm">
+                <label class="flex items-center gap-2 text-sm text-[#1a1a1a]">
                     <input
                         v-model="userForm.is_active"
-                        class="size-4 rounded border-input"
+                        class="size-4 rounded-[4px] border-[#c2c2c2] accent-[#024ad8]"
                         type="checkbox"
                     />
                     Active
@@ -530,12 +692,17 @@ const submitUserForm = () => {
                     <Button
                         type="button"
                         variant="outline"
+                        class="h-11 rounded-[4px] border-[#1a1a1a] bg-white px-6 text-sm font-semibold tracking-[0.7px] text-[#1a1a1a] uppercase shadow-none hover:bg-white"
                         :disabled="userForm.processing"
                         @click="closeUserModal"
                     >
                         Cancel
                     </Button>
-                    <Button type="submit" :disabled="userForm.processing">
+                    <Button
+                        type="submit"
+                        class="h-11 rounded-[4px] bg-[#024ad8] px-6 text-sm font-semibold tracking-[0.7px] text-white uppercase shadow-none hover:bg-[#0e3191]"
+                        :disabled="userForm.processing"
+                    >
                         {{ isEditing ? 'Save' : 'Tambah admin' }}
                     </Button>
                 </DialogFooter>
