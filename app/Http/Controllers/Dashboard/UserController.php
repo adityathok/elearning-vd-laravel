@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\UserServices;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -72,14 +73,19 @@ class UserController extends Controller
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
             'password' => ['required', 'string', 'confirmed'],
             'is_active' => ['required', 'boolean'],
-            'avatar' => ['nullable', 'string', 'max:255'],
+            'avatar' => ['nullable', 'image', 'max:500'],
         ]);
         unset($validated['password_confirmation']);
+
+        if ($request->hasFile('avatar')) {
+            $validated['avatar'] = $this->storeAvatar($request);
+        } else {
+            unset($validated['avatar']);
+        }
 
         $userServices->create([
             ...$validated,
             'role' => UserRole::Admin,
-            'avatar' => ($validated['avatar'] ?? null) ?: null,
         ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Admin user created.')]);
@@ -98,7 +104,7 @@ class UserController extends Controller
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)->ignore($user)],
             'password' => ['nullable', 'string', 'confirmed'],
             'is_active' => ['required', 'boolean'],
-            'avatar' => ['nullable', 'string', 'max:255'],
+            'avatar' => ['nullable', 'image', 'max:500'],
         ]);
 
         if (empty($validated['password'])) {
@@ -106,13 +112,26 @@ class UserController extends Controller
         }
         unset($validated['password_confirmation']);
 
-        $userServices->update($user, [
-            ...$validated,
-            'avatar' => ($validated['avatar'] ?? null) ?: null,
-        ]);
+        if ($request->hasFile('avatar')) {
+            $validated['avatar'] = $this->storeAvatar($request);
+        } else {
+            unset($validated['avatar']);
+        }
+
+        $userServices->update($user, $validated);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('User updated.')]);
 
         return to_route('dashboard.users.index');
+    }
+
+    /**
+     * Store an uploaded avatar and return its public URL.
+     */
+    private function storeAvatar(Request $request): string
+    {
+        $path = $request->file('avatar')->store('avatars', 'public');
+
+        return Storage::disk('public')->url($path);
     }
 }

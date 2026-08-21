@@ -89,7 +89,7 @@ const userForm = useForm({
     password: '',
     password_confirmation: '',
     is_active: true,
-    avatar: '',
+    avatar: null as File | null,
 });
 
 const isEditing = computed(() => editingUser.value !== null);
@@ -173,7 +173,7 @@ const openEditModal = (user: DashboardUser) => {
     userForm.password = '';
     userForm.password_confirmation = '';
     userForm.is_active = user.is_active;
-    userForm.avatar = user.avatar ?? '';
+    userForm.avatar = null;
     isUserModalOpen.value = true;
 };
 
@@ -184,24 +184,31 @@ const closeUserModal = () => {
     userForm.reset();
 };
 
+const setAvatarFile = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+
+    userForm.avatar = input.files?.[0] ?? null;
+};
+
 const submitUserForm = () => {
     const options = {
         preserveScroll: true,
         onSuccess: closeUserModal,
+        forceFormData: true,
     };
 
-    userForm.transform((data) => ({
-        ...data,
-        avatar: data.avatar.trim() || null,
-    }));
-
     if (editingUser.value) {
-        userForm.patch(`/dashboard/users/${editingUser.value.id}`, options);
+        userForm
+            .transform((data) => ({
+                ...data,
+                _method: 'patch',
+            }))
+            .post(`/dashboard/users/${editingUser.value.id}`, options);
 
         return;
     }
 
-    userForm.post('/dashboard/users', options);
+    userForm.transform((data) => data).post('/dashboard/users', options);
 };
 </script>
 
@@ -490,13 +497,22 @@ const submitUserForm = () => {
                 </div>
 
                 <div class="grid gap-2">
-                    <Label for="user-avatar">Avatar URL/path</Label>
+                    <Label for="user-avatar">Avatar</Label>
                     <Input
                         id="user-avatar"
-                        v-model="userForm.avatar"
-                        type="text"
-                        placeholder="avatars/admin.png"
+                        type="file"
+                        accept="image/*"
+                        @change="setAvatarFile"
                     />
+                    <p class="text-xs text-muted-foreground">
+                        Upload gambar maksimal 500KB.
+                    </p>
+                    <p
+                        v-if="isEditing && editingUser?.avatar"
+                        class="text-xs text-muted-foreground"
+                    >
+                        Avatar saat ini tetap dipakai jika tidak upload gambar baru.
+                    </p>
                     <InputError :message="userForm.errors.avatar" />
                 </div>
 

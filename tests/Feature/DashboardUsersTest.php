@@ -2,7 +2,10 @@
 
 use App\Enums\UserRole;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('guests are redirected from dashboard users page', function () {
@@ -109,7 +112,10 @@ test('dashboard users page can combine search and role filters', function () {
 });
 
 test('dashboard users page can create admin users only', function () {
+    Storage::fake('public');
+
     $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $avatar = UploadedFile::fake()->image('new-admin.jpg')->size(400);
 
     $this->actingAs($admin)
         ->post(route('dashboard.users.store'), [
@@ -120,7 +126,7 @@ test('dashboard users page can create admin users only', function () {
             'password_confirmation' => 'admin-secret',
             'role' => UserRole::Siswa->value,
             'is_active' => true,
-            'avatar' => 'avatars/new-admin.png',
+            'avatar' => $avatar,
         ])
         ->assertRedirect(route('dashboard.users.index'));
 
@@ -128,13 +134,18 @@ test('dashboard users page can create admin users only', function () {
 
     expect($createdUser->role)->toBe(UserRole::Admin)
         ->and($createdUser->is_active)->toBeTrue()
-        ->and($createdUser->avatar)->toBe('avatars/new-admin.png')
+        ->and($createdUser->avatar)->toContain('/storage/avatars/')
         ->and(Hash::check('admin-secret', $createdUser->password))->toBeTrue();
+
+    Storage::disk('public')->assertExists(Str::after($createdUser->avatar, '/storage/'));
 });
 
 test('dashboard users page can update a user', function () {
     $admin = User::factory()->create(['role' => UserRole::Admin]);
-    $user = User::factory()->create(['role' => UserRole::Guru]);
+    $user = User::factory()->create([
+        'role' => UserRole::Guru,
+        'avatar' => '/storage/avatars/existing.png',
+    ]);
 
     $this->actingAs($admin)
         ->patch(route('dashboard.users.update', $user), [
@@ -144,7 +155,6 @@ test('dashboard users page can update a user', function () {
             'password' => '',
             'password_confirmation' => '',
             'is_active' => false,
-            'avatar' => '',
         ])
         ->assertRedirect(route('dashboard.users.index'));
 
@@ -155,5 +165,47 @@ test('dashboard users page can update a user', function () {
         ->and($user->email)->toBe('updated.guru@example.com')
         ->and($user->role)->toBe(UserRole::Guru)
         ->and($user->is_active)->toBeFalse()
-        ->and($user->avatar)->toBeNull();
+        ->and($user->avatar)->toBe('/storage/avatars/existing.png');
+});
+
+test('dashboard users page can update avatar with an uploaded image', function () {
+    Storage::fake('public');
+
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $user = User::factory()->create(['avatar' => null]);
+    $avatar = UploadedFile::fake()->image('updated-avatar.png')->size(500);
+
+    $this->actingAs($admin)
+        ->patch(route('dashboard.users.update', $user), [
+            'name' => $user->name,
+            'username' => $user->username,
+            'email' => $user->email,
+            'password' => '',
+            'password_confirmation' => '',
+            'is_active' => true,
+            'avatar' => $avatar,
+        ])
+        ->assertRedirect(route('dashboard.users.index'));
+
+    $user->refresh();
+
+    expect($user->avatar)->toContain('/storage/avatars/');
+
+    Storage::disk('public')->assertExists(Str::after($user->avatar, '/storage/'));
+});
+
+test('dashboard users page rejects avatars larger than five hundred kilobytes', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+    $this->actingAs($admin)
+        ->post(route('dashboard.users.store'), [
+            'name' => 'Large Avatar',
+            'username' => 'large_avatar',
+            'email' => 'large.avatar@example.com',
+            'password' => 'admin-secret',
+            'password_confirmation' => 'admin-secret',
+            'is_active' => true,
+            'avatar' => UploadedFile::fake()->image('large-avatar.jpg')->size(501),
+        ])
+        ->assertSessionHasErrors('avatar');
 });
