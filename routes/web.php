@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Dashboard\GeneralSettingController;
 use App\Http\Controllers\Dashboard\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -11,6 +12,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('dashboard/users', [UserController::class, 'store'])->name('dashboard.users.store');
     Route::patch('dashboard/users/{user}', [UserController::class, 'update'])->name('dashboard.users.update');
     Route::delete('dashboard/users/{user}', [UserController::class, 'destroy'])->name('dashboard.users.destroy');
+    Route::get('dashboard/pengaturan/umum', [GeneralSettingController::class, 'edit'])->name('dashboard.pengaturan.umum.edit');
+    Route::patch('dashboard/pengaturan/umum', [GeneralSettingController::class, 'update'])->name('dashboard.pengaturan.umum.update');
 });
 
 require __DIR__.'/settings.php';
